@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>トランプ スピード (VS NPC)</title>
+    <!-- Tailwind CSS (デザインライブラリ) の読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムスタイルの定義 */
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        /* カードの選択状態アニメーション */
+        .card-selected {
+            transform: translateY(-8px) scale(1.05);
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.9);
+            border-color: #facc15 !important;
+        }
+        /* 台札の出せる状態のアニメーション */
+        .pile-target {
+            animation: pulse-border 1.2s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); box-shadow: 0 0 15px rgba(59, 130, 246, 0.8); }
+        }
+    </style>
+</head>
+<body class="bg-emerald-900 text-white min-h-screen flex flex-col justify-between font-sans overflow-x-hidden p-2 sm:p-4">
+
+    <!-- ヘッダーエリア -->
+    <header class="text-center py-2 bg-emerald-950/60 rounded-xl mb-2 backdrop-blur-sm">
+        <h1 class="text-xl sm:text-2xl font-bold tracking-wider text-yellow-400">⚡ スピード対戦 ⚡</h1>
+        <p class="text-xs sm:text-sm text-emerald-200">±1 の数字のカードを出して、先に手札をなくそう！</p>
+    </header>
+
+    <!-- メインゲームエリア -->
+    <main class="flex-1 flex flex-col justify-between max-w-md mx-auto w-full gap-3">
+        
+        <!-- NPC (対戦相手) エリア -->
+        <section class="bg-emerald-800/80 p-3 rounded-2xl border border-emerald-600/40 shadow-inner">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm sm:text-base flex items-center gap-1">
+                    🤖 コンピューター (NPC)
+                </span>
+                <span class="text-xs bg-emerald-950/80 px-2 py-1 rounded-full text-emerald-200">
+                    山札: <span id="npc-deck-count" class="font-bold text-yellow-300">0</span>枚
+                </span>
+            </div>
+            <!-- NPCの手札表示 (カード裏面) -->
+            <div id="npc-hand" class="flex justify-center gap-2 h-20 sm:h-24">
+                <!-- JSでカードが挿入されます -->
+            </div>
+        </section>
+
+        <!-- 中央：台札（場札） ＆ 操作エリア -->
+        <section class="bg-emerald-950/70 p-3 sm:p-4 rounded-2xl border border-emerald-700/50 shadow-lg flex flex-col items-center gap-3">
+            <div class="text-xs text-emerald-300 font-medium">【中央の台札】タップしてカードを出す</div>
+            
+            <div class="flex justify-center items-center gap-4 w-full">
+                <!-- 左の台札 -->
+                <div id="center-pile-0" class="w-20 h-28 sm:w-24 sm:h-32 bg-white rounded-xl border-4 border-emerald-600 flex flex-col justify-between p-1 sm:p-2 cursor-pointer transition-all duration-200 shadow-md">
+                    <!-- JSでカードが表示されます -->
+                </div>
+
+                <!-- 右の台札 -->
+                <div id="center-pile-1" class="w-20 h-28 sm:w-24 sm:h-32 bg-white rounded-xl border-4 border-emerald-600 flex flex-col justify-between p-1 sm:p-2 cursor-pointer transition-all duration-200 shadow-md">
+                    <!-- JSでカードが表示されます -->
+                </div>
+            </div>
+
+            <!-- 出せるカードがない時の「流す」ボタン -->
+            <button id="reset-piles-btn" onclick="resetPilesFromReserve()" class="w-full py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-emerald-950 font-bold rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2">
+                <span>🔄 どちらも出せない時：台札をめくる</span>
+                <span class="text-xs bg-amber-700 text-amber-100 px-2 py-0.5 rounded-full">残: <span id="reserve-count">0</span></span>
+            </button>
+        </section>
+
+        <!-- プレイヤー (自分) エリア -->
+        <section class="bg-emerald-800/80 p-3 rounded-2xl border border-emerald-600/40 shadow-inner">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm sm:text-base flex items-center gap-1 text-yellow-300">
+                    👤 あなた (プレイヤー)
+                </span>
+                <span class="text-xs bg-emerald-950/80 px-2 py-1 rounded-full text-emerald-200">
+                    山札: <span id="player-deck-count" class="font-bold text-yellow-300">0</span>枚
+                </span>
+            </div>
+            <!-- プレイヤーの手札表示 -->
+            <div id="player-hand" class="flex justify-center gap-2 h-20 sm:h-24">
+                <!-- JSでカードが挿入されます -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- フッター＆スタートボタン -->
+    <footer class="mt-2 text-center">
+        <button id="start-btn" onclick="startGame()" class="w-full max-w-md py-3 bg-yellow-400 hover:bg-yellow-300 text-emerald-950 font-extrabold text-base rounded-xl shadow-lg transition active:scale-95">
+            🎮 ゲームをスタートする
+        </button>
+        <p id="message-area" class="text-xs text-yellow-200 mt-2 h-4 font-medium"></p>
+    </footer>
+
+    <!-- 勝敗結果ダイアログ (モーダル) -->
+    <div id="result-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-emerald-900 border-2 border-yellow-400 rounded-2xl p-6 text-center max-w-xs w-full shadow-2xl">
+            <h2 id="result-title" class="text-2xl font-black mb-2 text-yellow-400">勝利！</h2>
+            <p id="result-message" class="text-sm mb-6 text-emerald-100">おめでとうございます！すべてのカードを出し切りました！</p>
+            <button onclick="closeModal(); startGame();" class="w-full py-3 bg-yellow-400 text-emerald-950 font-bold rounded-xl hover:bg-yellow-300 shadow">
+                もう一度遊ぶ
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 定数と状態変数 (データ管理)
+        // ==========================================
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        const DISPLAY_VALUES = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        let playerDeck = [];
+        let playerHand = [];
+        let npcDeck = [];
+        let npcHand = [];
+        let reserveDeck = [];
+        let centerPiles = [null, null]; // [左の台札, 右の台札]
+
+        let selectedPlayerCardIndex = null; // プレイヤーが選択中のカードインデックス
+        let npcIntervalId = null; // NPC思考ルーチンのタイマーID
+        let isGameActive = false; // ゲーム進行中フラグ
+
+        // ==========================================
+        // ゲーム初期化・開始機能
+        // ==========================================
+        function startGame() {
+            // タイマーのクリア
+            if (npcIntervalId) clearInterval(npcIntervalId);
+
+            // 52枚のデッキ作成 & シャッフル
+            let fullDeck = [];
+            for (let suit of SUITS) {
+                for (let val of VALUES) {
+                    fullDeck.push({ suit, value: val, isRed: (suit === '♥' || suit === '♦') });
+                }
+            }
+            shuffle(fullDeck);
+
+            // カードの分配
+            // プレイヤー: 山札16枚, 手札4枚 (計20枚)
+            // NPC: 山札16枚, 手札4枚 (計20枚)
+            // 予備山札(台札詰まり用): 10枚
+            // 初期台札: 2枚
+            playerDeck = fullDeck.slice(0, 16);
+            playerHand = fullDeck.slice(16, 20);
+
+            npcDeck = fullDeck.slice(20, 36);
+            npcHand = fullDeck.slice(36, 40);
+
+            reserveDeck = fullDeck.slice(40, 50);
+            centerPiles = [fullDeck[50], fullDeck[51]];
+
+            selectedPlayerCardIndex = null;
+            isGameActive = true;
+
+            // ボタン表示更新
+            document.getElementById('start-btn').textContent = '🔄 最初からやり直す';
+            setMessage('ゲーム開始！手札を選んで台札をタップしよう');
+
+            // 画面の更新
+            renderAll();
+
+            // NPCの思考ループ開始 (1.2秒毎にカードを出すか判定)
+            npcIntervalId = setInterval(npcTurn, 1200);
+        }
+
+        // 配列をランダムにシャッフル (フィッシャー–イェーツのシャッフル)
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // ==========================================
+        // ルール判定ロジック
+        // ==========================================
+        // カードを重ねられるか判定 (±1の数字、または13と1の繋がり)
+        function canPlace(card, targetCard) {
+            if (!card || !targetCard) return false;
+            const diff = Math.abs(card.value - targetCard.value);
+            // 差が1、または K(13) と A(1) の繋がり
+            return diff === 1 || diff === 12;
+        }
+
+        // ==========================================
+        // プレイヤーの操作処理
+        // ==========================================
+        // プレイヤーの手札選択
+        function selectPlayerCard(index) {
+            if (!isGameActive) return;
+            if (playerHand[index] === null) return;
+
+            if (selectedPlayerCardIndex === index) {
+                // 同じカードをタップしたら選択解除
+                selectedPlayerCardIndex = null;
+            } else {
+                selectedPlayerCardIndex = index;
+            }
+            renderAll();
+        }
+
+        // プレイヤーが台札をタップしてカードを出す
+        function playPlayerCardToPile(pileIndex) {
+            if (!isGameActive) return;
+            if (selectedPlayerCardIndex === null) {
+                setMessage('先に出したい自分のカードを選んでね！');
+                return;
+            }
+
+            const card = playerHand[selectedPlayerCardIndex];
+            const targetPileCard = centerPiles[pileIndex];
+
+            if (canPlace(card, targetPileCard)) {
+                // 出せる場合：台札を更新
+                centerPiles[pileIndex] = card;
+                
+                // 手札を補充（山札があれば引き、なければnull）
+                if (playerDeck.length > 0) {
+                    playerHand[selectedPlayerCardIndex] = playerDeck.pop();
+                } else {
+                    playerHand[selectedPlayerCardIndex] = null;
+                }
+
+                selectedPlayerCardIndex = null;
+                setMessage('ナイス！カードを出したよ');
+                renderAll();
+                checkWinCondition();
+            } else {
+                setMessage('そのカードは出せません！(数字が±1のものが出せます)');
+            }
+        }
+
+        // ==========================================
+        // NPC (コンピューター) の自動AI操作
+        // ==========================================
+        function npcTurn() {
+            if (!isGameActive) return;
+
+            // NPCが出せる手札と台札の組み合わせを探す
+            for (let i = 0; i < npcHand.length; i++) {
+                const card = npcHand[i];
+                if (!card) continue;
+
+                for (let pileIdx = 0; pileIdx < 2; pileIdx++) {
+                    if (canPlace(card, centerPiles[pileIdx])) {
+                        // 出せるカードを発見！台札に置く
+                        centerPiles[pileIdx] = card;
+
+                        // 手札補充
+                        if (npcDeck.length > 0) {
+                            npcHand[i] = npcDeck.pop();
+                        } else {
+                            npcHand[i] = null;
+                        }
+
+                        renderAll();
+                        checkWinCondition();
+                        return; // 1回で1枚だけ出す
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 台札の「流す(めくる)」処理
+        // ==========================================
+        function resetPilesFromReserve() {
+            if (!isGameActive) return;
+
+            if (reserveDeck.length < 2) {
+                setMessage('予備の山札が足りません！');
+                return;
+            }
+
+            // 予備山札から左右の台札に1枚ずつ配置
+            centerPiles[0] = reserveDeck.pop();
+            centerPiles[1] = reserveDeck.pop();
+
+            selectedPlayerCardIndex = null;
+            setMessage('新しい台札をめくりました！');
+            renderAll();
+        }
+
+        // ==========================================
+        // 勝敗判定
+        // ==========================================
+        function checkWinCondition() {
+            const isPlayerEmpty = playerHand.every(c => c === null) && playerDeck.length === 0;
+            const isNpcEmpty = npcHand.every(c => c === null) && npcDeck.length === 0;
+
+            if (isPlayerEmpty) {
+                endGame(true, '🎉 あなたの勝利！', 'すばらしいスピードでした！NPCに勝ちました！');
+            } else if (isNpcEmpty) {
+                endGame(false, '😢 NPCの勝利...', '残念！コンピューターに先を越されてしまいました。');
+            }
+        }
+
+        function endGame(isPlayerWin, title, message) {
+            isGameActive = false;
+            if (npcIntervalId) clearInterval(npcIntervalId);
+
+            document.getElementById('result-title').textContent = title;
+            document.getElementById('result-message').textContent = message;
+            document.getElementById('result-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').classList.add('hidden');
+        }
+
+        function setMessage(msg) {
+            document.getElementById('message-area').textContent = msg;
+        }
+
+        // ==========================================
+        // 画面描画 (レンダリング)
+        // ==========================================
+        function renderAll() {
+            // 山札枚数更新
+            document.getElementById('player-deck-count').textContent = playerDeck.length;
+            document.getElementById('npc-deck-count').textContent = npcDeck.length;
+            document.getElementById('reserve-count').textContent = reserveDeck.length;
+
+            // プレイヤー手札の描画
+            const playerHandEl = document.getElementById('player-hand');
+            playerHandEl.innerHTML = '';
+            playerHand.forEach((card, idx) => {
+                const isSelected = selectedPlayerCardIndex === idx;
+                playerHandEl.appendChild(createCardUI(card, true, isSelected, () => selectPlayerCard(idx)));
+            });
+
+            // NPC手札の描画 (裏面表示)
+            const npcHandEl = document.getElementById('npc-hand');
+            npcHandEl.innerHTML = '';
+            npcHand.forEach((card) => {
+                npcHandEl.appendChild(createCardUI(card, false, false, null));
+            });
+
+            // 台札の描画
+            for (let i = 0; i < 2; i++) {
+                const pileEl = document.getElementById(`center-pile-${i}`);
+                const card = centerPiles[i];
+                pileEl.onclick = () => playPlayerCardToPile(i);
+
+                if (card) {
+                    const textColor = card.isRed ? 'text-red-600' : 'text-slate-900';
+                    pileEl.className = `w-20 h-28 sm:w-24 sm:h-32 bg-white rounded-xl border-4 ${selectedPlayerCardIndex !== null ? 'pile-target border-blue-400' : 'border-emerald-600'} flex flex-col justify-between p-2 cursor-pointer shadow-md select-none`;
+                    pileEl.innerHTML = `
+                        <div class="text-xs sm:text-sm font-bold ${textColor} flex justify-between">
+                            <span>${DISPLAY_VALUES[card.value]}</span>
+                            <span>${card.suit}</span>
+                        </div>
+                        <div class="text-2xl sm:text-3xl text-center font-black ${textColor}">${card.suit}</div>
+                        <div class="text-xs sm:text-sm font-bold ${textColor} flex justify-between rotate-180">
+                            <span>${DISPLAY_VALUES[card.value]}</span>
+                            <span>${card.suit}</span>
+                        </div>
+                    `;
+                } else {
+                    pileEl.innerHTML = `<div class="m-auto text-xs text-gray-400">なし</div>`;
+                }
+            }
+        }
+
+        // カード要素のHTML生成ヘルパー
+        function createCardUI(card, isFront, isSelected, onClickFn) {
+            const div = document.createElement('div');
+            
+            if (!card) {
+                // カードがなくなった空枠
+                div.className = 'w-14 h-20 sm:w-16 sm:h-24 rounded-lg border-2 border-dashed border-emerald-700/60 bg-emerald-900/30';
+                return div;
+            }
+
+            if (!isFront) {
+                // カード裏面 (NPC用)
+                div.className = 'w-14 h-20 sm:w-16 sm:h-24 bg-blue-800 border-2 border-white rounded-lg flex items-center justify-center shadow-sm';
+                div.innerHTML = `<div class="w-10 h-16 border border-blue-400/50 rounded flex items-center justify-center text-blue-300/40 text-xs font-bold">★</div>`;
+                return div;
+            }
+
+            // カード表面 (プレイヤー用)
+            const textColor = card.isRed ? 'text-red-600' : 'text-slate-900';
+            const selectedClass = isSelected ? 'card-selected border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white';
+            
+            div.className = `w-14 h-20 sm:w-16 sm:h-24 ${selectedClass} border-2 rounded-lg flex flex-col justify-between p-1 sm:p-1.5 cursor-pointer shadow-md transition-all duration-150 select-none`;
+            div.onclick = onClickFn;
+            div.innerHTML = `
+                <div class="text-xs font-bold ${textColor} flex justify-between leading-none">
+                    <span>${DISPLAY_VALUES[card.value]}</span>
+                    <span>${card.suit}</span>
+                </div>
+                <div class="text-lg sm:text-xl text-center ${textColor} leading-none">${card.suit}</div>
+                <div class="text-xs font-bold ${textColor} flex justify-between leading-none rotate-180">
+                    <span>${DISPLAY_VALUES[card.value]}</span>
+                    <span>${card.suit}</span>
+                </div>
+            `;
+            return div;
+        }
+
+        // 初期描画
+        renderAll();
+    </script>
+</body>
+</html>
