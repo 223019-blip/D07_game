@@ -183,11 +183,11 @@
         const VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
         const DISPLAY_VALUES = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-        // 難易度設定 (NPC思考間隔ms: やさしい~1秒 / ふつう~0.7秒 / むずかしい~0.2秒)
+        // 難易度設定 (NPC思考間隔msを全体的に遅く調整)
         const DIFFICULTY_SETTINGS = {
-            easy: { name: 'やさしい', minDelay: 900, maxDelay: 1100, icon: '🐢' },
-            normal: { name: 'ふつう', minDelay: 630, maxDelay: 770, icon: '🤖' },
-            hard: { name: 'むずかしい', minDelay: 180, maxDelay: 220, icon: '⚡' }
+            easy: { name: 'やさしい', minDelay: 1500, maxDelay: 2000, icon: '🐢' },  // 約1.5秒〜2.0秒
+            normal: { name: 'ふつう', minDelay: 1000, maxDelay: 1400, icon: '🤖' },  // 約1.0秒〜1.4秒
+            hard: { name: 'むずかしい', minDelay: 600, maxDelay: 900, icon: '⚡' }   // 約0.6秒〜0.9秒
         };
 
         let currentDifficulty = 'easy';
