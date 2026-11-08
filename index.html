@@ -322,6 +322,14 @@
             const card = playerHand[index];
             if (!card) return;
 
+            // 既に選択中のカードをタップした場合は選択解除する
+            if (selectedPlayerCardIndex === index) {
+                selectedPlayerCardIndex = null;
+                setMessage('カードの選択を解除しました');
+                renderAll();
+                return;
+            }
+
             const validPiles = getValidPilesForCard(card);
 
             if (validPiles.length === 0) {
@@ -331,9 +339,15 @@
                 return;
             }
 
-            // 出せる台札があれば即座に出す（両方出せる場合は右の台札を優先）
-            const targetPile = validPiles.includes(1) ? 1 : validPiles[0];
-            playPlayerCardToPile(index, targetPile);
+            if (validPiles.length === 2) {
+                // 両方の台札に出せる場合は選択状態にする
+                selectedPlayerCardIndex = index;
+                setMessage('👇 出したい台札をタップしてください');
+                renderAll();
+            } else {
+                // 片方にしか出せない場合は即座に出す
+                playPlayerCardToPile(index, validPiles[0]);
+            }
         }
 
         function playSelectedToPile(pileIndex) {
